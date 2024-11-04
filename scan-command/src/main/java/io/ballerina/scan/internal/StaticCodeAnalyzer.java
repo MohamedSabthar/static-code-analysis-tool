@@ -19,35 +19,28 @@
 package io.ballerina.scan.internal;
 
 import io.ballerina.compiler.api.SemanticModel;
+import io.ballerina.compiler.api.symbols.Qualifier;
 import io.ballerina.compiler.api.symbols.Symbol;
-import io.ballerina.compiler.syntax.tree.CheckExpressionNode;
-import io.ballerina.compiler.syntax.tree.ExplicitAnonymousFunctionExpressionNode;
-import io.ballerina.compiler.syntax.tree.FunctionDefinitionNode;
-import io.ballerina.compiler.syntax.tree.FunctionSignatureNode;
-import io.ballerina.compiler.syntax.tree.ImplicitAnonymousFunctionExpressionNode;
-import io.ballerina.compiler.syntax.tree.ImplicitAnonymousFunctionParameters;
-import io.ballerina.compiler.syntax.tree.IncludedRecordParameterNode;
-import io.ballerina.compiler.syntax.tree.ModulePartNode;
-import io.ballerina.compiler.syntax.tree.Node;
-import io.ballerina.compiler.syntax.tree.NodeVisitor;
-import io.ballerina.compiler.syntax.tree.SimpleNameReferenceNode;
-import io.ballerina.compiler.syntax.tree.SyntaxKind;
-import io.ballerina.compiler.syntax.tree.SyntaxTree;
+import io.ballerina.compiler.api.symbols.SymbolKind;
+import io.ballerina.compiler.api.symbols.VariableSymbol;
+import io.ballerina.compiler.syntax.tree.*;
 import io.ballerina.projects.Document;
 import io.ballerina.scan.ScannerContext;
 
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
  * {@code StaticCodeAnalyzer} contains the logic to perform core static code analysis on Ballerina documents.
  *
  * @since 0.1.0
- * */
+ */
 class StaticCodeAnalyzer extends NodeVisitor {
     private final Document document;
     private final SyntaxTree syntaxTree;
     private final ScannerContext scannerContext;
     private final SemanticModel semanticModel;
+    private final HashMap<Integer, Symbol> restSymbols = new HashMap<>();
 
     StaticCodeAnalyzer(Document document, ScannerContextImpl scannerContext, SemanticModel semanticModel) {
         this.document = document;
@@ -58,6 +51,8 @@ class StaticCodeAnalyzer extends NodeVisitor {
 
     void analyze() {
         this.visit((ModulePartNode) syntaxTree.rootNode());
+        RecordAssignmentVisitor rav = new RecordAssignmentVisitor(restSymbols, semanticModel, this.syntaxTree);
+        rav.analyze();
     }
 
     /**
@@ -70,6 +65,7 @@ class StaticCodeAnalyzer extends NodeVisitor {
         if (checkExpressionNode.checkKeyword().kind().equals(SyntaxKind.CHECKPANIC_KEYWORD)) {
             reportIssue(checkExpressionNode, CoreRule.AVOID_CHECKPANIC);
         }
+        this.visitSyntaxNode(checkExpressionNode);
     }
 
     @Override
@@ -91,13 +87,115 @@ class StaticCodeAnalyzer extends NodeVisitor {
             parameters.parameters().forEach(parameter -> {
                 reportIssueIfNodeIsUnused(parameter, CoreRule.UNUSED_FUNCTION_PARAMETER);
             });
+            this.visitSyntaxNode(implicitAnonymousFunctionExpressionNode);
             return;
         }
         if (params instanceof SimpleNameReferenceNode) {
             reportIssueIfNodeIsUnused(params, CoreRule.UNUSED_FUNCTION_PARAMETER);
         }
+        this.visitSyntaxNode(implicitAnonymousFunctionExpressionNode);
+    }
 
-        this.visitSyntaxNode(implicitAnonymousFunctionExpressionNode.expression());
+//    @Override
+//    public void visit(ExplicitNewExpressionNode explicitNewExpressionNode) {
+//        var argList = explicitNewExpressionNode.parenthesizedArgList();
+//    }
+
+    @Override
+    public void visit(ImplicitNewExpressionNode implicitNewExpressionNode) {
+        if (implicitNewExpressionNode.parenthesizedArgList().isEmpty()) {
+            return;
+        }
+        ParenthesizedArgList parenthesizedArgList = implicitNewExpressionNode.parenthesizedArgList().get();
+        if (parenthesizedArgList.arguments().isEmpty()) {
+            return;
+        }
+        for (FunctionArgumentNode argumentNode : parenthesizedArgList.arguments()) {
+            if (argumentNode.kind() == SyntaxKind.NAMED_ARG) {
+                NamedArgumentNode namedArgumentNode = (NamedArgumentNode) argumentNode;
+                if (!(namedArgumentNode.argumentName().name().text().trim().equals("password"))) {
+                    continue;
+                }
+                if (namedArgumentNode.expression().kind() == SyntaxKind.STRING_LITERAL) {
+                    // 1. new(password = password) // simple named argument
+                    System.out.println("plain text password");
+                    continue;
+                }
+                if (namedArgumentNode.expression().kind() == SyntaxKind.SIMPLE_NAME_REFERENCE) {
+                    Optional<Symbol> identifier = semanticModel.symbol(namedArgumentNode.expression());
+                    if (identifier.isEmpty()) {
+                        continue;
+                    }
+                    if (identifier.get().kind() == SymbolKind.VARIABLE) {
+                        VariableSymbol variableSymbol = (VariableSymbol) identifier.get();
+                        if (variableSymbol.qualifiers().stream().map(qualifier -> qualifier.name().trim()).noneMatch(q -> Qualifier.CONFIGURABLE.name().equals(q))) {
+                            System.out.println("Not a configurable");
+                        }
+                    }
+                }
+            } else if (argumentNode.kind() == SyntaxKind.POSITIONAL_ARG) {
+                PositionalArgumentNode positionalArgumentNode = (PositionalArgumentNode) argumentNode;
+                ExpressionNode expression = positionalArgumentNode.expression();
+                if (expression.kind() == SyntaxKind.MAPPING_CONSTRUCTOR) {
+                    MappingConstructorExpressionNode mappingConstructorExpressionNode = (MappingConstructorExpressionNode) expression;
+                    for (MappingFieldNode field: mappingConstructorExpressionNode.fields()) {
+                        if (field.kind() != SyntaxKind.SPECIFIC_FIELD) {
+                            continue;
+                        }
+                        SpecificFieldNode specificFieldNode = (SpecificFieldNode) field;
+                        if (!specificFieldNode.fieldName().toSourceCode().trim().equals("password")) {
+                            continue;
+                        }
+                        if(specificFieldNode.valueExpr().isEmpty()) {
+
+                            Optional<Symbol> identifier = semanticModel.symbol(specificFieldNode);
+                            if (identifier.isEmpty()) {
+                                continue;
+                            }
+                            if (identifier.get().kind() == SymbolKind.VARIABLE) {
+                                VariableSymbol variableSymbol = (VariableSymbol) identifier.get();
+                                if (variableSymbol.qualifiers().stream().map(qualifier -> qualifier.name().trim()).noneMatch(q -> Qualifier.CONFIGURABLE.name().equals(q))) {
+                                    // 6. new({password}) // inline record with shorthand notation
+                                    System.out.println("Not a configurable3");
+                                }
+                            }
+                            continue;
+                        }
+                        ExpressionNode valueNode = specificFieldNode.valueExpr().get();
+                        if (valueNode.kind() == SyntaxKind.STRING_LITERAL) {
+                            // 5. new({password: password}) // inline record
+                            System.out.println("plain text password2");
+                            continue;
+                        }
+                        if (valueNode.kind() == SyntaxKind.SIMPLE_NAME_REFERENCE) {
+                            Optional<Symbol> identifier = semanticModel.symbol(valueNode);
+                            if (identifier.isEmpty()) {
+                                continue;
+                            }
+                            if (identifier.get().kind() == SymbolKind.VARIABLE) {
+                                VariableSymbol variableSymbol = (VariableSymbol) identifier.get();
+                                if (variableSymbol.qualifiers().stream().map(qualifier -> qualifier.name().trim()).noneMatch(q -> Qualifier.CONFIGURABLE.name().equals(q))) {
+                                    System.out.println("Not a configurable2");
+                                }
+                            }
+                        }
+                    }
+                }
+                System.out.println(expression);
+            } else if (argumentNode.kind() == SyntaxKind.REST_ARG) {
+                RestArgumentNode restArgumentNode = (RestArgumentNode) argumentNode;
+                ExpressionNode expression = restArgumentNode.expression();
+                if (expression.kind() == SyntaxKind.SIMPLE_NAME_REFERENCE) {
+                    Optional<Symbol> identifier = semanticModel.symbol(expression);
+                    if (identifier.isEmpty()) {
+                        continue;
+                    }
+                    Symbol restSymbol = identifier.get();
+                    this.restSymbols.put(restSymbol.hashCode(), restSymbol);
+                    // todo: get the record value from the identifier and loop and verify
+                }
+            }
+        }
     }
 
     private void checkUnusedFunctionParameters(FunctionSignatureNode functionSignatureNode) {
@@ -126,5 +224,26 @@ class StaticCodeAnalyzer extends NodeVisitor {
     private boolean isUnusedNode(Node node) {
         Optional<Symbol> symbol = semanticModel.symbol(node);
         return symbol.filter(value -> semanticModel.references(value).size() == 1).isPresent();
+    }
+}
+
+class RecordAssignmentVisitor extends NodeVisitor {
+    private final HashMap<Integer, Symbol> restSymbols;
+    private final SemanticModel semanticModel;
+    private final SyntaxTree syntaxTree;
+
+    RecordAssignmentVisitor(HashMap<Integer, Symbol> restSymbols, SemanticModel semanticModel, SyntaxTree syntaxTree) {
+        this.restSymbols = restSymbols;
+        this.semanticModel = semanticModel;
+        this.syntaxTree = syntaxTree;
+    }
+
+    public void analyze() {
+        this.visit((ModulePartNode) syntaxTree.rootNode());
+    }
+
+    @Override
+    public void visit(AssignmentStatementNode assignmentStatementNode) {
+        assignmentStatementNode.expression();
     }
 }
