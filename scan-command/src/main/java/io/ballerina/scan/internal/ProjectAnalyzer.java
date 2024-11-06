@@ -105,10 +105,24 @@ class ProjectAnalyzer {
         ScannerContextImpl scannerContext = new ScannerContextImpl(inbuiltRules);
         project.currentPackage().moduleIds().forEach(moduleId -> {
             Module module = project.currentPackage().module(moduleId);
+            module.documentIds().forEach(scanCode(module, scannerContext));
+            module.testDocumentIds().forEach(scanCode(module, scannerContext));
+        });
+        project.currentPackage().moduleIds().forEach(moduleId -> {
+            Module module = project.currentPackage().module(moduleId);
             module.documentIds().forEach(analyzeDocument(module, scannerContext));
             module.testDocumentIds().forEach(analyzeDocument(module, scannerContext));
         });
         return scannerContext.getReporter().getIssues();
+    }
+
+    private Consumer<DocumentId> scanCode(Module module, ScannerContextImpl scannerContext) {
+        SemanticModel semanticModel = module.getCompilation().getSemanticModel();
+        return documentId -> {
+            Document document = module.document(documentId);
+            CodeScanner codeScanner = new CodeScanner(document, scannerContext, semanticModel);
+            codeScanner.scan();
+        };
     }
 
     private Consumer<DocumentId> analyzeDocument(Module module, ScannerContextImpl scannerContext) {

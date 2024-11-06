@@ -24,15 +24,21 @@ import io.ballerina.scan.RuleKind;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.ballerina.scan.RuleKind.CODE_SMELL;
+import static io.ballerina.scan.RuleKind.VULNERABILITY;
+import static io.ballerina.scan.internal.RuleFactory.*;
+
 /**
  * {@code CoreRule} contains the core static code analysis rules.
  *
  * @since 0.1.0
- * */
+ */
 enum CoreRule {
-    AVOID_CHECKPANIC(RuleFactory.createRule(1, "Avoid checkpanic", RuleKind.CODE_SMELL)),
-    UNUSED_FUNCTION_PARAMETER(RuleFactory.createRule(2,
-            "Unused function parameter", RuleKind.CODE_SMELL));
+    AVOID_CHECKPANIC(createRule(1, "Avoid checkpanic", CODE_SMELL)),
+    UNUSED_FUNCTION_PARAMETER(createRule(2, "Unused function parameter", CODE_SMELL)),
+    HARD_CODED_PASSWORD(createRule(3, "Hard-coded passwords are security-sensitive", VULNERABILITY)),
+    NON_CONFIGURABLE_PASSWORD(createRule(2, "Non configurable passwords are security-sensitive", VULNERABILITY));
+
 
     private final Rule rule;
 
@@ -46,7 +52,7 @@ enum CoreRule {
 
     static List<Rule> rules() {
         List<Rule> coreRules = new ArrayList<>();
-        for (CoreRule coreRule: CoreRule.values()) {
+        for (CoreRule coreRule : CoreRule.values()) {
             coreRules.add(coreRule.rule());
         }
         return coreRules;
