@@ -73,9 +73,9 @@ public class SensitiveParameterTracker extends NodeVisitor {
             return;
         }
         @SuppressWarnings("unchecked")
-        Map<Integer, FunctionWithSensitiveParams> map = (Map<Integer, FunctionWithSensitiveParams>)
-                userData.get(FUNCTIONS_WITH_SENSITIVE_PARAMETERS);
-        map.put(functionSymbol.get().hashCode(),
+        Map<Integer, FunctionWithSensitiveParams> functionWithSensitiveParams =
+                (Map<Integer, FunctionWithSensitiveParams>) userData.get(FUNCTIONS_WITH_SENSITIVE_PARAMETERS);
+        functionWithSensitiveParams.put(functionSymbol.get().hashCode(),
                 new FunctionWithSensitiveParams(functionSymbol.get(), sensitiveParamsPositions));
         super.visit(methodDeclarationNode);
     }
