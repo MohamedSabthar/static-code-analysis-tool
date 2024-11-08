@@ -14,12 +14,5 @@
 // specific language governing permissions and limitations
 // under the License.
 
-public type Credential record {
-    string username;
-    string password = "password";
-};
-
-public type ClientCredential record {
-    string clientId;
-    string clientSecret = "secret";
-};
+const PASSWORD = "password";
+const API_KEY = "234567890234567890-34567890-dkajf";

@@ -14,12 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+string password = "password";
+
 public type Credential record {
     string username;
-    string password = "password";
+    string password;
 };
 
-public type ClientCredential record {
-    string clientId;
-    string clientSecret = "secret";
-};
+public function main() {
+    Credential credential = {username: "sabthar", password};
+}

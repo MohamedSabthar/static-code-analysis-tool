@@ -33,7 +33,6 @@ import static io.ballerina.scan.internal.CoreRule.HARD_CODED_SECRET;
  * @since 0.1.0
  */
 public class Rule003Test extends StaticCodeAnalyzerTest {
-
     @Test
     void testHardcodedModuleLevelSecretVariable() {
         String documentName = "rule003_hardcoded_module_level_secret_variable.bal";
@@ -154,6 +153,36 @@ public class Rule003Test extends StaticCodeAnalyzerTest {
         List<Location> expectedIssueLocations = new ArrayList<>(List.of(
                 new Location(16, 27, 16, 65),
                 new Location(20, 31, 20, 89)));
+        issues.forEach(issue -> assertIssue(issue, documentName,
+                expectedIssueLocations.remove(0), HARD_CODED_SECRET.rule()));
+    }
+
+    @Test
+    void testHardcodedSecretConstant() {
+        String documentName = "rule003_hardcoded_secret_constant.bal";
+        List<Issue> issues = analyze(documentName, List.of(HARD_CODED_SECRET.rule()));
+        Assert.assertEquals(issues.size(), 2);
+        List<Location> expectedIssueLocations = new ArrayList<>(List.of(
+                new Location(16, 17, 16, 27),
+                new Location(17, 16, 17, 51)));
+        issues.forEach(issue -> assertIssue(issue, documentName,
+                expectedIssueLocations.remove(0), HARD_CODED_SECRET.rule()));
+    }
+
+    @Test
+    void testHardcodedConstantAssignment() {
+        String documentName = "rule003_hardcoded_constant_assignment.bal";
+        List<Issue> issues = analyze(documentName, List.of(HARD_CODED_SECRET.rule()));
+        Assert.assertEquals(issues.size(), 8);
+        List<Location> expectedIssueLocations = new ArrayList<>(List.of(
+                new Location(19, 28, 19, 66),
+                new Location(23, 22, 23, 35),
+                new Location(31, 70, 31, 83),
+                new Location(33, 57, 33, 70),
+                new Location(34, 89, 34, 102),
+                new Location(35, 56, 35, 69),
+                new Location(59, 58, 59, 71),
+                new Location(64, 55, 64, 68)));
         issues.forEach(issue -> assertIssue(issue, documentName,
                 expectedIssueLocations.remove(0), HARD_CODED_SECRET.rule()));
     }

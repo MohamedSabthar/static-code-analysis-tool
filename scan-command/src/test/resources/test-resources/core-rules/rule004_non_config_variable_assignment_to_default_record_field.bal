@@ -14,12 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+final string defaultValue = "password";
+
 public type Credential record {
     string username;
-    string password = "password";
+    string password = defaultValue;
 };
 
-public type ClientCredential record {
+public type ClientCredential record {|
     string clientId;
-    string clientSecret = "secret";
-};
+    string clientSecret = defaultValue;
+|};

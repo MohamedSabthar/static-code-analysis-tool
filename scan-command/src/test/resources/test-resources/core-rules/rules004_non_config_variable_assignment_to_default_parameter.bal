@@ -14,12 +14,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-public type Credential record {
-    string username;
-    string password = "password";
-};
+import ballerina/io;
 
-public type ClientCredential record {
-    string clientId;
-    string clientSecret = "secret";
-};
+string defaultValue = "password";
+
+function printUserInfo(string username, string password = defaultValue) {
+    io:println(string `Username: ${username}, Password strength: ${passwordStrength(password)}%`);
+}
+
+class PasswordStrenghtChecker {
+    function strength(string username, string secret = defaultValue) {
+        io:println(string `Username: ${username}, Password strength: ${passwordStrength(secret)}%`);
+    }
+}
+
+function passwordStrength(string word) returns float {
+    return <float>word.length() / 12 * 100;
+}

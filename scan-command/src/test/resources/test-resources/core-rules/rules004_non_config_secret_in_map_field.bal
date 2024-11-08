@@ -14,12 +14,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+string defaultValue = "password";
+
 public type Credential record {
     string username;
-    string password = "password";
+    string password;
 };
 
-public type ClientCredential record {
-    string clientId;
-    string clientSecret = "secret";
+public type Config record {
+    record {|
+        Credential credential;
+    |} nested;
 };
+
+public function main() {
+    Credential credential = {username: "sabthar", password: defaultValue};
+    Config config = {nested: {credential: {username: "sabthar", password: defaultValue}}};
+    json clientConfig = {clientId: "xyz", clientSecret: defaultValue};
+}

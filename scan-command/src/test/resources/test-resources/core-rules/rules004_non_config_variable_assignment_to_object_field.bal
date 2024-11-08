@@ -14,12 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-public type Credential record {
-    string username;
-    string password = "password";
-};
+final string defaultValue = "default secret";
 
-public type ClientCredential record {
-    string clientId;
-    string clientSecret = "secret";
-};
+class Client {
+    final string secret = defaultValue;
+    final string password = defaultValue;
+}

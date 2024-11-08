@@ -24,6 +24,7 @@ import io.ballerina.compiler.api.symbols.Symbol;
 import io.ballerina.compiler.api.symbols.SymbolKind;
 import io.ballerina.compiler.api.symbols.VariableSymbol;
 import io.ballerina.compiler.syntax.tree.BasicLiteralNode;
+import io.ballerina.compiler.syntax.tree.ConstantDeclarationNode;
 import io.ballerina.compiler.syntax.tree.DefaultableParameterNode;
 import io.ballerina.compiler.syntax.tree.ExpressionNode;
 import io.ballerina.compiler.syntax.tree.FunctionArgumentNode;
@@ -61,7 +62,9 @@ import static io.ballerina.scan.internal.CoreRule.NON_CONFIGURABLE_SECRET;
 import static io.ballerina.scan.internal.SensitiveParameterTracker.FUNCTIONS_WITH_SENSITIVE_PARAMETERS;
 
 public class SecretChecker extends NodeVisitor {
-    private static final Pattern SECRET_WORDS = Pattern.compile("password|passwd|pwd|passphrase|secret|clientSecret");
+    private static final Pattern SECRET_WORDS = Pattern
+            .compile("password|passwd|pwd|passphrase|secret|clientSecret|PASSWORD|PASSWD|PWD|PASSPHRASE" +
+                    "|PASS_PHRASE|SECRET|CLIENTSECRET|CLIENT_SECRET|APIKEY|API_KEY");
     private static final Pattern URL_PREFIX = Pattern.compile("^\\w{1,8}://");
     private static final Pattern NON_EMPTY_URL_CREDENTIAL = Pattern.compile("(?<user>[^\\s:]*+):(?<password>\\S++)");
     private static final String PLACE_HOLDER_STRING = "xyz";
@@ -227,6 +230,17 @@ public class SecretChecker extends NodeVisitor {
     }
 
     @Override
+    public void visit(ConstantDeclarationNode constantDeclarationNode) {
+        if (isSecretName(constantDeclarationNode.variableName().text())) {
+            Node initializer = constantDeclarationNode.initializer();
+            if (initializer instanceof ExpressionNode expressionNode) {
+                validateExpression(expressionNode);
+            }
+        }
+        super.visit(constantDeclarationNode);
+    }
+
+    @Override
     public void visit(MethodCallExpressionNode methodCallExpressionNode) {
         validateFunctionCall(methodCallExpressionNode, methodCallExpressionNode.arguments());
         super.visit(methodCallExpressionNode);
@@ -281,11 +295,18 @@ public class SecretChecker extends NodeVisitor {
 
     private void validateSimpleNameReference(ExpressionNode expressionNode) {
         Optional<Symbol> identifier = semanticModel.symbol(expressionNode);
-        if (identifier.isPresent() && identifier.get().kind() == SymbolKind.VARIABLE) {
+        if (identifier.isEmpty()) {
+            return;
+        }
+        if (identifier.get().kind() == SymbolKind.VARIABLE) {
             VariableSymbol variableSymbol = (VariableSymbol) identifier.get();
             if (!isConfigurable(variableSymbol)) {
                 reportNonConfigurableSecret(expressionNode);
             }
+            return;
+        }
+        if (identifier.get().kind() == SymbolKind.CONSTANT) {
+            reportHardCodedSecret(expressionNode);
         }
     }
 
